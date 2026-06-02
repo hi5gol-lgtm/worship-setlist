@@ -1,5 +1,0 @@
-{
-  "routes": [
-    { "src": "/env.js", "dest": "/api/env" }
-  ]
-}
