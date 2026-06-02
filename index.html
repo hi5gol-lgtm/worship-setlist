@@ -539,40 +539,56 @@ function setSongEditable(sid, editable){
   renderSongs();
   if(editable) setTimeout(()=>document.getElementById('t_'+sid)?.focus(),60);
 }
-function syncSong(id,f,v){const s=songs.find(s=>s.id===id);if(s)s[f]=v;}
+function syncSong(id,f,v){const s=songs.find(s=>s.id===id);if(s){s[f]=v;}}
 function addSecById(sid,type){
   const s=songs.find(s=>s.id===sid);if(!s)return;
   saveBulkState(sid);
   s.sections.push({type,repeat:'',lyrics:''});
+  // 전체 가사 뷰 상태면 다시 입력 모드로
+  if(s.lyricsCompleted) s.lyricsCompleted=false;
   renderSongs();
 }
 function addCustomSec(sid){
   const inp=document.getElementById('cust_'+sid);
   const v=inp?.value?.trim();
   if(!v)return;
+  const s=songs.find(s=>s.id===sid);if(!s)return;
   saveBulkState(sid);
-  addSecById(sid,v);
+  s.sections.push({type:v,repeat:'',lyrics:''});
+  renderSongs();
   inp.value='';
 }
 
 function saveBulkState(sid){
   const s=songs.find(s=>s.id===sid);if(!s)return;
+  // 가사 입력 모드 (bulk editor)
   const editor=document.getElementById('bulk_'+sid);
-  if(!editor)return;
-  editor.querySelectorAll('textarea[data-idx]').forEach(ta=>{
-    const idx=parseInt(ta.dataset.idx);
-    if(!isNaN(idx)&&s.sections[idx]) s.sections[idx].lyrics=ta.value;
-  });
+  if(editor){
+    editor.querySelectorAll('textarea[data-type]').forEach(ta=>{
+      s.sections.forEach(sec=>{
+        if(sec.type===ta.dataset.type) sec.lyrics=ta.value;
+      });
+    });
+  }
+  // 전체 가사 뷰 모드 (lyricsCompleted)
+  const fullView=document.querySelector('.full-lyrics-view');
+  if(fullView){
+    fullView.querySelectorAll('textarea[data-sec-idx]').forEach(ta=>{
+      const idx=parseInt(ta.dataset.secIdx);
+      if(!isNaN(idx)&&s.sections[idx]) s.sections[idx].lyrics=ta.value;
+    });
+  }
 }
 function removeSec(sid,idx){
   const s=songs.find(s=>s.id===sid);if(!s)return;
   saveBulkState(sid);
   s.sections.splice(idx,1);
+  if(s.lyricsCompleted) s.lyricsCompleted=false;
   renderSongs();
 }
 function removeLastSec(sid){
   const s=songs.find(s=>s.id===sid);
-  if(s&&s.sections.length){saveBulkState(sid);s.sections.pop();renderSongs();}
+  if(s&&s.sections.length){saveBulkState(sid);s.sections.pop();if(s.lyricsCompleted)s.lyricsCompleted=false;renderSongs();}
 }
 function setRep(sid,idx,rep){
   const s=songs.find(s=>s.id===sid);
@@ -675,7 +691,7 @@ function renderSong(song){
                   <span class="bulk-sec-label ${cls}">${sec.type}</span>
                   ${repNum>1?'<span class="full-sec-rep">'+( r+1)+'/'+repNum+'</span>':''}
                 </div>
-                <textarea class="bulk-sec-ta" oninput="syncSecLyricsFull('${song.id}',${idx},this.value);autoResize(this)" onfocus="autoResize(this)">${esc(sec.lyrics)}</textarea>
+                <textarea class="bulk-sec-ta" data-sec-idx="${idx}" oninput="syncSecLyricsFull('${song.id}',${idx},this.value);autoResize(this)" onfocus="autoResize(this)">${esc(sec.lyrics)}</textarea>
               </div>`);
             }
             return blocks.join('');
@@ -1133,6 +1149,7 @@ function sfDragLeave(e,sid){}
 function sfDrop(e,sid){
   e.preventDefault();
   if(_dragSong!==sid||_dragIdx===null)return;
+  saveBulkState(sid);
   const tags=document.getElementById('sftags_'+sid);
   const items=[...tags.querySelectorAll('.sf-tag-item')];
   // 드롭 위치 계산
@@ -1163,6 +1180,7 @@ function showInsertDD(e,sid,insertIdx){
   const uid='dd'+Date.now();
   _ddCbs[uid]=(val)=>{
     const s=songs.find(s=>s.id===sid);if(!s)return;
+    saveBulkState(sid);
     s.sections.splice(insertIdx,0,{type:val,repeat:'',lyrics:''});
     renderSongs();
     document.querySelectorAll('.dd').forEach(d=>d.remove());
